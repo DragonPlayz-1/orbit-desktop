@@ -57,7 +57,7 @@ jobs:
           curl --fail --location --retry 3 https://github.com/elkowar/eww/archive/refs/tags/v0.6.0.tar.gz -o "$RUNNER_TEMP/eww.tar.gz"
           printf 'cef361946946c566b79f8ddc6208d1a3f16b4ff9961439a3f86935e1cfa174a1  %s\n' "$RUNNER_TEMP/eww.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/eww.tar.gz" -C "$RUNNER_TEMP"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
