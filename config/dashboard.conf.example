@@ -1,0 +1,46 @@
+# Legacy Orbit Dashboard configuration (version 1)
+# New installations use Orbit Studio and settings.json. This file is retained
+# as an import reference for existing users. Literal assignments are read as
+# data; arbitrary shell code is never executed. Custom commands import disabled.
+# Legacy import location:
+#   ${XDG_CONFIG_HOME:-$HOME/.config}/eww-dashboard/dashboard.conf
+# Once migrated, make changes in Orbit Studio instead of this file.
+
+# Identity
+DASHBOARD_NAME="Your Name"
+DASHBOARD_PROFILE_IMAGE=""
+
+# Display selection. Use a monitor index (0, 1, ...), or an output name
+# such as HDMI-A-1. The value is passed directly to EWW.
+DASHBOARD_MONITOR="0"
+
+# Weather is intentionally disabled until both values are configured.
+# Latitude: -90..90, longitude: -180..180.
+DASHBOARD_WEATHER_LATITUDE=""
+DASHBOARD_WEATHER_LONGITUDE=""
+DASHBOARD_WEATHER_UNIT="metric"
+DASHBOARD_WEATHER_REFRESH_SECONDS=300
+
+# Destructive power actions require a graphical confirmation by default.
+DASHBOARD_CONFIRM_POWER_ACTIONS=1
+
+# Optional command to run from the Updates button. Example:
+# DASHBOARD_UPDATE_COMMAND="sudo pacman -Syu"
+DASHBOARD_UPDATE_COMMAND=""
+
+# Optional command overrides. Empty values use portable runtime detection.
+DASHBOARD_BROWSER_COMMAND=""
+DASHBOARD_FILE_MANAGER_COMMAND=""
+DASHBOARD_TERMINAL_COMMAND=""
+DASHBOARD_MUSIC_PLAYER=""
+
+# Application commands. Empty values use detection or show a notification.
+DASHBOARD_APP_FIREFOX_COMMAND=""
+DASHBOARD_APP_NOTEPADQQ_COMMAND=""
+DASHBOARD_APP_BLENDER_COMMAND=""
+DASHBOARD_APP_TERMINAL_COMMAND=""
+DASHBOARD_APP_FILE_MANAGER_COMMAND=""
+DASHBOARD_APP_METASPLOIT_COMMAND=""
+DASHBOARD_APP_CODE_COMMAND=""
+DASHBOARD_APP_BURP_COMMAND=""
+DASHBOARD_APP_BOXES_COMMAND=""

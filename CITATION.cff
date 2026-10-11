@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If Orbit Desktop helps your work, please cite the project or link to its repository."
+title: "Orbit Desktop"
+version: "0.1.0"
+date-released: 2026-10-11
+type: software
+abstract: "A calm, configurable EWW desktop surface and local customization studio for Linux."
+authors:
+  - alias: DragonPlayz-1
+    affiliation: Independent project
+repository-code: "https://github.com/DragonPlayz-1/orbit-desktop"
+license: GPL-3.0-only
+keywords:
+  - eww
+  - linux
+  - desktop
+  - wayland
+  - x11
+  - customization

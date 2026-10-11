@@ -1,0 +1,2 @@
+;; Development defaults. The launcher generates user-specific preferences.
+(defvar PREFS '{"name":"Your space","caption":"Make room for what matters.","image":"images/music.png","has_image":false,"artwork":true,"username":"","place":"Your forecast","settings":"scripts/dashboard_settings"}')

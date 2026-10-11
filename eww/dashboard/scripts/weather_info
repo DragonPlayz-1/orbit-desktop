@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+weather_json() (
+    local directory="${CACHE_DIR}/weather" key cache now timestamp attempt response status icon temperature unit degree note
+    if [[ -z "${DASHBOARD_WEATHER_LATITUDE}" || -z "${DASHBOARD_WEATHER_LONGITUDE}" ]]; then
+        jq -nc '{status:"Weather not configured",temp:"—",icon:"☁",note:"Choose your city in Customize",timestamp:0}'
+        exit 0
+    fi
+    mkdir -p "${directory}"
+    key="$(printf '%s' "${DASHBOARD_WEATHER_LATITUDE},${DASHBOARD_WEATHER_LONGITUDE},${DASHBOARD_WEATHER_UNIT}" | sha256sum)"
+    key=${key%% *}; cache="${directory}/${key}.json"
+    now=$(date +%s)
+    response='{"status":"Forecast unavailable","temp":"—","icon":"☁","note":"Waiting for a connection","timestamp":0,"attempt":0}'
+    if [[ -r "${cache}" ]] && jq -e '.timestamp|type=="number"' "${cache}" >/dev/null 2>&1; then response="$(cat "${cache}")"; fi
+    timestamp="$(jq -r '.timestamp // 0' <<< "${response}")"
+    attempt="$(jq -r '.attempt // 0' <<< "${response}")"
+    exec 9>"${directory}/${key}.lock"
+    if (( now-timestamp >= DASHBOARD_WEATHER_REFRESH_SECONDS && now-attempt >= 60 )) && flock -n 9; then
+        # Recheck after acquiring the lock; another poll may have just refreshed.
+        if [[ -r "${cache}" ]]; then attempt="$(jq -r '.attempt // 0' "${cache}" 2>/dev/null || printf 0)"; fi
+        if (( now-attempt >= 60 )); then
+            unit=celsius; degree='°C'
+            if [[ "${DASHBOARD_WEATHER_UNIT}" == imperial ]]; then unit=fahrenheit; degree='°F'; fi
+            local fetched=''
+            fetched="$(curl --fail --silent --connect-timeout 3 --max-time 8 --get \
+                --data-urlencode "latitude=${DASHBOARD_WEATHER_LATITUDE}" --data-urlencode "longitude=${DASHBOARD_WEATHER_LONGITUDE}" \
+                --data-urlencode 'current=temperature_2m,weather_code' --data-urlencode "temperature_unit=${unit}" \
+                'https://api.open-meteo.com/v1/forecast' 2>/dev/null)" || true
+            if jq -se 'length == 1 and (.[0].current.temperature_2m | type == "number") and (.[0].current.weather_code | type == "number")' >/dev/null 2>&1 <<< "${fetched}"; then
+                temperature="$(jq -r '.current.temperature_2m|round' <<< "${fetched}")${degree}"
+                case "$(jq -r .current.weather_code <<< "${fetched}")" in
+                    0) status='Clear sky'; icon='☀' ;; 1|2) status='Partly cloudy'; icon='◐' ;;
+                    3) status='Overcast'; icon='☁' ;; 45|48) status='Fog'; icon='≋' ;;
+                    51|53|55|56|57) status='Drizzle'; icon='☂' ;; 61|63|65|66|67|80|81|82) status='Rain'; icon='☂' ;;
+                    71|73|75|77|85|86) status='Snow'; icon='❄' ;; 95|96|99) status='Thunderstorm'; icon='ϟ' ;;
+                    *) status='Conditions unavailable'; icon='?' ;;
+                esac
+                response="$(jq -nc --arg status "${status}" --arg temp "${temperature}" --arg icon "${icon}" --argjson now "${now}" '{status:$status,temp:$temp,icon:$icon,note:"Weather by Open-Meteo",timestamp:$now,attempt:$now}')"
+            else
+                note='Offline · waiting for the first forecast'
+                (( timestamp == 0 )) || note="Offline · last updated $(date -d "@${timestamp}" '+%b %d %H:%M')"
+                response="$(jq -c --arg note "${note}" --argjson now "${now}" '.note=$note | .attempt=$now' <<< "${response}")"
+            fi
+            atomic_write "${cache}" <<< "${response}"
+        fi
+    fi
+    [[ ! -r "${cache}" ]] || response="$(cat "${cache}")"
+    printf '%s\n' "${response}"
+)
+case "${1:-}" in
+    --json|--getdata) weather_json ;;
+    --stat) weather_json | jq -r .status ;; --temp) weather_json | jq -r .temp ;;
+    --icon) weather_json | jq -r .icon ;; --quote|--quote2) weather_json | jq -r .note ;;
+    --hex) printf '#85dbcd\n' ;;
+    *) print_error 'usage: weather_info --json|--stat|--temp|--icon|--quote|--getdata'; exit 64 ;;
+esac

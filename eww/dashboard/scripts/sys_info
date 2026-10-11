@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+cpu_usage() (
+    local total idle old_total=0 old_idle=0 dt di
+    exec 8>"${CACHE_DIR}/cpu.lock"
+    flock -w 1 8 || { printf '0\n'; exit 0; }
+    read -r total idle < <(awk '/^cpu / { print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6; exit }' /proc/stat)
+    if [[ -r "${CACHE_DIR}/cpu.stat" ]]; then
+        read -r old_total old_idle < "${CACHE_DIR}/cpu.stat" || true
+    fi
+    printf '%s %s\n' "${total}" "${idle}" | atomic_write "${CACHE_DIR}/cpu.stat"
+    if [[ ! "${old_total} ${old_idle}" =~ ^[0-9]+\ [0-9]+$ ]] || (( old_total == 0 )); then
+        printf '0\n'; exit 0
+    fi
+    dt=$((total-old_total)); di=$((idle-old_idle))
+    awk -v dt="${dt}" -v di="${di}" 'BEGIN {n=dt>0 ? 100*(dt-di)/dt : 0; if(n<0)n=0;if(n>100)n=100;printf "%.0f\n",n}'
+)
+memory_usage() {
+    awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {n=t>0 ? (t-a)*100/t : 0;if(n<0)n=0;if(n>100)n=100;printf "%.0f\n",n}' /proc/meminfo
+}
+volume_usage() {
+    local raw='' value='' backend
+    for backend in wpctl pactl pamixer amixer; do
+        command_exists "${backend}" || continue
+        case "${backend}" in
+            wpctl)
+                raw="$(timeout 2 wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)" || continue
+                if [[ "${raw}" == *MUTED* ]]; then value=0
+                elif [[ "${raw}" =~ Volume:[[:space:]]+([0-9]+([.][0-9]+)?) ]]; then
+                    value="$(awk -v n="${BASH_REMATCH[1]}" 'BEGIN{printf "%.0f",n*100}')"
+                fi ;;
+            pactl)
+                if [[ "$(timeout 2 pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null || true)" == *yes ]]; then value=0
+                else
+                    raw="$(timeout 2 pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null)" || continue
+                    [[ "${raw}" =~ ([0-9]+)% ]] && value=${BASH_REMATCH[1]}
+                fi ;;
+            pamixer) value="$(timeout 2 pamixer --get-volume 2>/dev/null)" || continue ;;
+            amixer)
+                raw="$(timeout 2 amixer get Master 2>/dev/null)" || continue
+                if [[ "${raw}" == *'[off]'* ]]; then value=0
+                elif [[ "${raw}" =~ ([0-9]+)% ]]; then value=${BASH_REMATCH[1]}; fi ;;
+        esac
+        if [[ "${value}" =~ ^[0-9]{1,4}$ ]]; then
+            value=$((10#${value})); (( value > 100 )) && value=100
+            printf '%s\n' "${value}"; return
+        fi
+    done
+    printf '0\n'
+}
+disk_free() { df -hP -- "${DASHBOARD_DISK_PATH}" 2>/dev/null | awk 'NR==2 { print $4 }' || printf 'Unavailable\n'; }
+uptime_text() { awk '{d=int($1/86400);h=int($1%86400/3600);m=int($1%3600/60);if(d)printf "%dd %dh\n",d,h;else printf "%dh %dm\n",h,m}' /proc/uptime; }
+updates_text() (
+    [[ "${DASHBOARD_CHECK_UPDATES}" == 1 ]] || { printf 'Updates disabled\n'; exit 0; }
+    local cache="${CACHE_DIR}/updates.json" now stamp=0 count=0 output status=0 found=0
+    now=$(date +%s)
+    [[ ! -f "${cache}" ]] || stamp="$(jq -r '.timestamp // 0' "${cache}" 2>/dev/null || printf 0)"
+    if [[ "${stamp}" =~ ^[0-9]+$ ]] && (( now-stamp < 900 )); then jq -r .text "${cache}"; exit; fi
+    exec 8>"${CACHE_DIR}/updates.lock"
+    flock -n 8 || { printf 'Checking updates…\n'; exit 0; }
+    if command_exists checkupdates; then
+        found=1
+        output="$(timeout 8 checkupdates 2>/dev/null)" || status=$?
+        if (( status == 0 )); then count=$(printf '%s\n' "${output}" | awk 'NF{n++}END{print n+0}')
+        elif (( status != 2 )); then found=0; fi
+    elif command_exists apt; then
+        if output="$(LC_ALL=C timeout 8 apt list --upgradable 2>/dev/null)"; then
+            found=1; count=$(printf '%s\n' "${output}" | awk '/upgradable from/{n++}END{print n+0}')
+        fi
+    fi
+    if command_exists flatpak && output="$(timeout 8 flatpak remote-ls --updates --columns=application 2>/dev/null)"; then
+        found=1; count=$((count+$(printf '%s\n' "${output}" | awk 'NF{n++}END{print n+0}')))
+    fi
+    if (( ! found )); then output='Updates unavailable'
+    elif (( count == 0 )); then output='Up to date'
+    else output="${count} updates available"; fi
+    jq -nc --arg text "${output}" --argjson timestamp "${now}" '{text:$text,timestamp:$timestamp}' | atomic_write "${cache}"
+    printf '%s\n' "${output}"
+)
+case "${1:-}" in
+    --json) jq -nc --argjson cpu "$(cpu_usage)" --argjson memory "$(memory_usage)" --argjson volume "$(volume_usage)" --arg disk "$(disk_free)" --arg uptime "$(uptime_text)" --arg updates "$(updates_text)" '{cpu:$cpu,memory:$memory,volume:$volume,disk:$disk,uptime:$uptime,updates:$updates}' ;;
+    --cpu) cpu_usage ;; --mem) memory_usage ;; --volume) volume_usage ;;
+    --disk-free) disk_free ;; --uptime) uptime_text ;; --updates) updates_text ;;
+    *) print_error 'usage: sys_info --json|--cpu|--mem|--volume|--disk-free|--uptime|--updates'; exit 64 ;;
+esac

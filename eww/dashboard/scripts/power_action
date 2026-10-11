@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+
+confirm_action() {
+    local action=$1
+
+    if [[ "${DASHBOARD_CONFIRM_POWER_ACTIONS}" != '1' ]]; then
+        return 0
+    fi
+
+    if command_exists zenity; then
+        zenity --question --title="Orbit Dashboard" --text="${action} the computer?" --ok-label="${action}" --cancel-label="Cancel" >/dev/null 2>&1
+    elif command_exists kdialog; then
+        kdialog --title "Orbit Dashboard" --yesno "${action} the computer?" >/dev/null 2>&1
+    elif command_exists rofi; then
+        [[ "$(printf 'Cancel\n%s\n' "${action}" | rofi -dmenu -i -p "Confirm ${action}")" == "${action}" ]]
+    elif command_exists wofi; then
+        [[ "$(printf 'Cancel\n%s\n' "${action}" | wofi --dmenu --prompt "Confirm ${action}")" == "${action}" ]]
+    else
+        notify_user 'Action cancelled' 'Install zenity, kdialog, rofi, or wofi for power confirmations.'
+        return 1
+    fi
+}
+
+lock_session() {
+    local session=${XDG_SESSION_ID:-self}
+    if [[ "${DASHBOARD_LOCK_BEFORE_SUSPEND}" != 1 ]]; then return 0; fi
+    if command_exists loginctl && timeout 3 loginctl lock-session "${session}" >/dev/null 2>&1; then
+        for _ in {1..10}; do
+            if [[ "$(timeout 1 loginctl show-session "${session}" -p LockedHint --value 2>/dev/null || true)" == yes ]]; then return 0; fi
+            sleep 0.1
+        done
+    fi
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]] && command_exists hyprlock; then
+        hyprlock >/dev/null 2>&1 &
+        local locker_pid=$!
+        sleep 0.5
+        kill -0 "${locker_pid}" 2>/dev/null
+    elif [[ -n "${WAYLAND_DISPLAY:-}" ]] && command_exists swaylock; then
+        timeout 5 swaylock -f >/dev/null 2>&1
+    elif [[ -n "${DISPLAY:-}" ]] && command_exists i3lock; then
+        timeout 5 i3lock >/dev/null 2>&1
+    else
+        return 1
+    fi
+}
+
+perform_action() {
+    local action=$1
+    local systemctl_action=$2
+
+    command_exists systemctl || {
+        notify_user 'Power action unavailable' 'systemctl was not found on this system.'
+        return 1
+    }
+
+    confirm_action "${action}" || return 0
+    close_dashboard
+
+    if [[ "${systemctl_action}" == 'suspend' ]]; then
+        if ! lock_session; then
+            notify_user 'Suspend cancelled' 'Session locking failed. Configure a working locker or change the setting in Customize.'
+            return 1
+        fi
+    fi
+
+    if ! timeout 15 systemctl "${systemctl_action}"; then
+        notify_user "${action} failed" "systemctl ${systemctl_action} did not complete."
+        return 1
+    fi
+}
+
+case "${1:-}" in
+    --close)
+        close_dashboard
+        notify_user 'Dashboard closed' 'Orbit Dashboard is ready to reopen.'
+        ;;
+    --suspend) perform_action 'Suspend' suspend ;;
+    --reboot) perform_action 'Reboot' reboot ;;
+    --poweroff) perform_action 'Power off' poweroff ;;
+    *)
+        print_error 'usage: power_action --close|--suspend|--reboot|--poweroff'
+        exit 64
+        ;;
+esac

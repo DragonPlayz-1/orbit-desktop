@@ -1,0 +1,10 @@
+(defwidget dashboard_body []
+  (box :orientation "v" :space-evenly false :spacing 14
+    (box :spacing 14 :space-evenly true
+      (card :title "Profile" (profile))
+      (card :title "Clock" (clock))
+      (card :title "System" (system)))
+    (box :spacing 14 :space-evenly true
+      (card :title "Weather" (weather))
+      (card :title "Music" (music))
+      (card :title "Power" (power)))))

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+    --update) exec "${SCRIPT_DIR}/dashboard_action" update ;;
+    --index) exec "${SCRIPT_DIR}/dashboard_action" links "${2:?Shortcut index required}" ;;
+    --gh) label=GitHub ;; --yt) label=YouTube ;; --mail) label=Mail ;;
+    *) printf 'Choose or add this link in Orbit Studio → Links.\n' >&2; exit 64 ;;
+esac
+index="$("${SCRIPT_DIR}/dashboard_config" --json | jq -r --arg label "${label}" '.links | to_entries | map(select(.value.label==$label and .value.enabled)) | .[0].key // empty')"
+[[ -n "${index}" ]] || { printf 'Add this link in Orbit Studio.\n' >&2; exit 1; }
+exec "${SCRIPT_DIR}/dashboard_action" links "${index}"

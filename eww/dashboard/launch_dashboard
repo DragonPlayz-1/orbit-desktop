@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:---toggle}" in
+    --settings|--setup) exec "${SCRIPT_DIR}/scripts/dashboard_settings" ;;
+    --help) printf 'Usage: launch_dashboard [--open|--close|--toggle|--reload|--settings|--diagnose]\n'; exit 0 ;;
+    --diagnose) exec "${SCRIPT_DIR}/scripts/dashboard_doctor" ;;
+    --open|--close|--toggle|--reload) mode=${1:---toggle} ;;
+    *) [[ $# -eq 0 ]] || { printf 'Unknown option: %s\n' "$1" >&2; exit 64; }; mode=--toggle ;;
+esac
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/scripts/lib/common.sh"
+exec 9>"${STATE_DIR}/launcher.lock"
+flock -w 10 9 || { print_error 'Another dashboard action is still running.'; exit 1; }
+EWW="$(require_eww)" || exit 1
+eww_call() { timeout 15 "${EWW}" --config "${EWW_CONFIG}" "$@" 9>&-; }
+if [[ "${mode}" == --close ]]; then
+    eww_call close dashboard 2>/dev/null || true
+    exit 0
+fi
+was_open=0
+dashboard_is_open && was_open=1
+if [[ "${mode}" == --toggle && "${was_open}" == 1 ]]; then
+    eww_call close dashboard
+    exit 0
+fi
+config_control init >/dev/null
+config_control render >/dev/null
+if eww_call ping >/dev/null 2>&1; then
+    eww_call reload
+elif [[ "${mode}" == --reload ]]; then
+    # Applying preferences while closed should not open a desktop window.
+    exit 0
+else
+    # Do not let the daemon inherit the launch lock.
+    eww_call daemon 9>&- >>"${STATE_DIR}/launcher.log" 2>&1
+    ready=0
+    for _ in {1..50}; do
+        if eww_call ping >/dev/null 2>&1; then ready=1; break; fi
+        sleep 0.1
+    done
+    (( ready )) || { print_error "EWW did not become ready. See ${STATE_DIR}/launcher.log"; exit 1; }
+fi
+if [[ "${mode}" == --reload && "${was_open}" == 0 ]]; then exit 0; fi
+if (( was_open )); then eww_call close dashboard; fi
+if ! eww_call open dashboard --screen "${DASHBOARD_MONITOR}" >>"${STATE_DIR}/launcher.log" 2>&1; then
+    eww_call close dashboard >/dev/null 2>&1 || true
+    notify_user 'Could not open dashboard' 'Check the monitor in Customize and run Diagnostics for details.'
+    exit 1
+fi
+# EWW releases can return success even when a window failed. Check actual state.
+opened=0
+for _ in {1..30}; do
+    if dashboard_is_open; then opened=1; break; fi
+    sleep 0.1
+done
+if (( ! opened )); then
+    print_error "EWW did not report an open dashboard. Run ${SCRIPT_DIR}/scripts/dashboard_doctor and inspect eww logs."
+    exit 1
+fi

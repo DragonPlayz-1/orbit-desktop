@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Compatibility entry point. New shortcuts are configured in Orbit Studio.
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+    --ff) target=browser ;; --fm) target=files ;; --tr) target=terminal ;;
+    --index) exec "${SCRIPT_DIR}/dashboard_action" apps "${2:?Shortcut index required}" ;;
+    *) printf 'Choose or add this application in Orbit Studio → Applications.\n' >&2; exit 64 ;;
+esac
+index="$("${SCRIPT_DIR}/dashboard_config" --json | jq -r --arg target "${target}" '.apps | to_entries | map(select(.value.kind=="default" and .value.target==$target and .value.enabled)) | .[0].key // empty')"
+[[ -n "${index}" ]] || { printf 'Add this default application in Orbit Studio.\n' >&2; exit 1; }
+exec "${SCRIPT_DIR}/dashboard_action" apps "${index}"

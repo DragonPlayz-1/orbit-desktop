@@ -1,0 +1,82 @@
+;; Orbit Dashboard. Derived from adi1090x/widgets, GPL-3.0.
+;; Generated preferences/layout live in the user cache, never in this source.
+(include "prefs.yuck")
+(include "layout.yuck")
+(defpoll CLOCK :interval "10s" :initial '{"time":"--:--","period":"","date":"Welcome back"}' `scripts/dashboard_config --clock`)
+(defpoll SYSTEM :interval "3s" :initial '{"cpu":0,"memory":0,"volume":0,"disk":"--","uptime":"--","updates":"Updates disabled"}' `scripts/sys_info --json`)
+(defpoll MUSIC :interval "3s" :initial '{"song":"Nothing playing","artist":"Start your favorite player","status":"▶","progress":0}' `scripts/music_info --json`)
+(defpoll COVER :interval "15s" :initial "images/music.png" `scripts/music_info --cover`)
+(defpoll WEATHER :interval "60s" :initial '{"status":"Choose your city in Customize","temp":"--","icon":"☁","note":"Weather by Open-Meteo"}' `scripts/weather_info --json`)
+
+(defwidget card [title]
+  (box :class "card" :orientation "v" :space-evenly false :hexpand true
+    (label :class "kicker" :text title :halign "fill" :xalign 0 :hexpand true :limit-width 40)
+    (children)))
+(defwidget shortcut [label icon action]
+  (button :class "shortcut" :onclick action :timeout "5s" :tooltip label
+    (box :space-evenly false :spacing 12
+      (label :class "shortcut-icon" :text icon :width 40)
+      (label :text label :halign "start" :hexpand true :limit-width 28)
+      (label :class "muted" :text "↗"))))
+(defwidget metric [name value]
+  (box :orientation "v" :space-evenly false :spacing 6
+    (box :space-evenly false
+      (label :class "muted" :text name :halign "start" :hexpand true)
+      (label :text "${value}%"))
+    (progress :value value)))
+(defwidget profile []
+  (box :orientation "v" :space-evenly false :spacing 10
+    (image :visible {PREFS.has_image} :path {PREFS.image} :image-width 64 :image-height 64 :halign "start")
+    (label :class "hero" :text {PREFS.name} :halign "start" :limit-width 22)
+    (label :class "muted" :text {PREFS.caption} :wrap true :limit-width 30 :halign "start")
+    (label :class "accent" :visible {PREFS.username != ""} :text "@${PREFS.username}" :halign "start")))
+(defwidget clock []
+  (box :orientation "v" :space-evenly false :spacing 8
+    (label :class "clock" :text {CLOCK.time} :halign "start")
+    (label :class "accent" :text {CLOCK.period} :visible {CLOCK.period != ""} :halign "start")
+    (label :class "muted" :text {CLOCK.date} :wrap true :limit-width 28 :halign "start")))
+(defwidget system []
+  (box :orientation "v" :space-evenly false :spacing 14
+    (metric :name "Processor" :value {SYSTEM.cpu})
+    (metric :name "Memory" :value {SYSTEM.memory})
+    (metric :name "Volume" :value {SYSTEM.volume})
+    (label :class "muted" :text "${SYSTEM.disk} free" :halign "start")
+    (button :class "subtle" :onclick "scripts/dashboard_action update" :timeout "5s" :tooltip "Run your configured update command"
+      (label :text {SYSTEM.updates} :limit-width 30))))
+(defwidget weather []
+  (box :orientation "v" :space-evenly false :spacing 10
+    (box :space-evenly false
+      (label :class "weather-icon" :text {WEATHER.icon} :hexpand true :halign "start")
+      (label :class "hero" :text {WEATHER.temp}))
+    (label :text {PREFS.place} :halign "start" :limit-width 28)
+    (label :class "accent" :text {WEATHER.status} :wrap true :limit-width 28 :halign "start")
+    (label :class "muted" :text {WEATHER.note} :wrap true :limit-width 30 :halign "start")))
+(defwidget music []
+  (box :orientation "v" :space-evenly false :spacing 10
+    (image :path COVER :visible {PREFS.artwork} :image-width 72 :image-height 72 :halign "start")
+    (label :class "hero-small" :text {MUSIC.song} :limit-width 28 :halign "start")
+    (label :class "muted" :text {MUSIC.artist} :limit-width 30 :halign "start")
+    (box :class "transport" :spacing 8
+      (button :onclick "scripts/music_info --prev" :timeout "5s" :tooltip "Previous track" "‹")
+      (button :onclick "scripts/music_info --toggle" :timeout "5s" :tooltip "Play or pause" {MUSIC.status})
+      (button :onclick "scripts/music_info --next" :timeout "5s" :tooltip "Next track" "›"))
+    (eventbox :onscroll "scripts/music_info --seek-{}" :timeout "5s" :tooltip "Scroll to seek"
+      (progress :value {MUSIC.progress}))))
+(defwidget uptime []
+  (box :orientation "v" :spacing 8 :space-evenly false
+    (label :class "hero" :text {SYSTEM.uptime} :halign "start")
+    (label :class "muted" :text "Time since your last restart" :halign "start")))
+(defwidget power []
+  (box :orientation "v" :spacing 6 :space-evenly false
+    (button :class "shortcut" :onclick "scripts/power_action --suspend" :timeout "5m" :tooltip "Suspend after confirmation" "☾  Suspend")
+    (button :class "shortcut" :onclick "scripts/power_action --reboot" :timeout "5m" :tooltip "Restart after confirmation" "↻  Restart")
+    (button :class "shortcut" :onclick "scripts/power_action --poweroff" :timeout "5m" :tooltip "Power off after confirmation" "⏻  Power off")))
+(defwindow dashboard :stacking "fg" :focusable true
+  :geometry (geometry :anchor "center" :width "92%" :height "88%")
+  (box :class "dashboard" :orientation "v" :space-evenly false
+    (box :class "header" :space-evenly false :spacing 12
+      (label :class "brand" :text "◉  ORBIT" :halign "start" :show-truncated false)
+      (label :class "muted" :text "Your space. Your rhythm." :hexpand true :halign "start")
+      (button :class "primary" :onclick {PREFS.settings} :timeout "2s" :tooltip "Open Orbit Studio" "Customize")
+      (button :class "subtle" :onclick "scripts/power_action --close" :timeout "3s" :tooltip "Close dashboard" "×"))
+    (scroll :vscroll true :hscroll false :vexpand true (dashboard_body))))

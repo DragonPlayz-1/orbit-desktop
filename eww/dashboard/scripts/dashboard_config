@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+case "${1:---help}" in
+    --root) printf '%s\n' "${ROOT}" ;;
+    --config-path) python3 "${ROOT}/lib/control.py" path ;;
+    --cache-path) printf '%s\n' "${XDG_CACHE_HOME:-${HOME}/.cache}/eww-dashboard" ;;
+    --name) python3 "${ROOT}/lib/control.py" json | jq -r '.profile.name' ;;
+    --username) python3 "${ROOT}/lib/control.py" json | jq -r '.profile.show_username as $show | if $show then env.USER // "user" else "" end' ;;
+    --monitor) python3 "${ROOT}/lib/control.py" json | jq -r '.layout.monitor' ;;
+    --profile-image) python3 "${ROOT}/lib/control.py" json | jq -r '.profile.image' ;;
+    --asset)
+        case "${2:-}" in
+            background) printf '%s/images/bg.jpg\n' "${ROOT}" ;; music) printf '%s/images/music.png\n' "${ROOT}" ;;
+            google|perplexity) printf '%s/images/%s.svg\n' "${ROOT}" "$2" ;;
+            firefox|notepadqq|blender|terminal|files|metasploit|code|burp|boxes) printf '%s/images/icons/%s.svg\n' "${ROOT}" "$2" ;;
+            *) printf 'Unknown asset: %s\n' "${2:-}" >&2; exit 64 ;;
+        esac ;;
+    --json|--init|--validate|--reset|--render|--clock) python3 "${ROOT}/lib/control.py" "${1#--}" ;;
+    --version) printf '2.0.0\n' ;;
+    --help) printf 'Usage: dashboard_config --json|--init|--validate|--reset|--render|--clock|--config-path|--root|--version\n' ;;
+    *) printf 'Unknown configuration option: %s\n' "$1" >&2; exit 64 ;;
+esac

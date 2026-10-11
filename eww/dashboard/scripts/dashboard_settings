@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+STATE="${XDG_STATE_HOME:-${HOME}/.local/state}/eww-dashboard"
+umask 077
+mkdir -p "${STATE}"
+if [[ "${1:-}" == --stop ]]; then
+    exec python3 "${ROOT}/lib/studio.py" --stop
+fi
+if [[ "${1:-}" == --foreground ]]; then
+    shift
+    exec env PYTHONDONTWRITEBYTECODE=1 python3 "${ROOT}/lib/studio.py" "$@"
+fi
+nohup env PYTHONDONTWRITEBYTECODE=1 python3 "${ROOT}/lib/studio.py" "$@" >"${STATE}/studio.log" 2>&1 </dev/null &
+printf 'Orbit Studio is opening in your browser. Details: %s/studio.log\n' "${STATE}"

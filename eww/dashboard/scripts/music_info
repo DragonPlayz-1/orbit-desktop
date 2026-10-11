@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+PLAYER='' BACKEND=none STATUS=''
+pc() { timeout 2 playerctl "$@" 2>/dev/null; }
+mpc_command() { timeout 2 mpc "$@" 2>/dev/null; }
+select_player() {
+    local player status paused=''
+    if command_exists playerctl; then
+        if [[ -n "${DASHBOARD_MUSIC_PLAYER}" ]] && STATUS="$(pc -p "${DASHBOARD_MUSIC_PLAYER}" status)"; then
+            PLAYER=${DASHBOARD_MUSIC_PLAYER}; BACKEND=mpris; return
+        fi
+        while IFS= read -r player || [[ -n "${player}" ]]; do
+            [[ -n "${player}" ]] || continue
+            status="$(pc -p "${player}" status || true)"
+            if [[ "${status}" == Playing ]]; then PLAYER=${player}; STATUS=${status}; BACKEND=mpris; return; fi
+            [[ "${status}" != Paused || -n "${paused}" ]] || paused=${player}
+        done < <(pc -l || true)
+        if [[ -n "${paused}" ]]; then PLAYER=${paused}; STATUS=Paused; BACKEND=mpris; return; fi
+    fi
+    if command_exists mpc && STATUS="$(mpc_command status)"; then BACKEND=mpd; fi
+}
+meta() { pc -p "${PLAYER}" metadata --format "$1" || true; }
+song() {
+    case "${BACKEND}" in mpris) meta '{{title}}' ;; mpd) mpc_command -f '%title%' current || true ;; esac
+}
+artist() {
+    case "${BACKEND}" in mpris) meta '{{artist}}' ;; mpd) mpc_command -f '%artist%' current || true ;; esac
+}
+progress() {
+    local position length
+    if [[ "${BACKEND}" == mpris ]]; then
+        position="$(pc -p "${PLAYER}" position || printf 0)"; length="$(meta '{{mpris:length}}')"
+        [[ "${position}" =~ ^[0-9]+([.][0-9]+)?$ && "${length}" =~ ^[0-9]+$ ]] || { printf '0\n'; return; }
+        awk -v p="${position}" -v l="${length}" 'BEGIN{n=l>0?p*100000000/l:0;if(n>100)n=100;if(n<0)n=0;printf "%.0f\n",n}'
+    elif [[ "${BACKEND}" == mpd && "${STATUS}" =~ ([0-9]+)% ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else printf '0\n'; fi
+}
+status_icon() {
+    if [[ "${STATUS}" == Playing || "${STATUS}" == *'[playing]'* ]]; then printf 'Ⅱ\n'; else printf '▶\n'; fi
+}
+control() {
+    local action=$1
+    if [[ "${BACKEND}" == mpris ]]; then
+        case "${action}" in
+            toggle) pc -p "${PLAYER}" play-pause ;; next|previous) pc -p "${PLAYER}" "${action}" ;;
+            forward) pc -p "${PLAYER}" position "${DASHBOARD_SEEK_SECONDS}+" ;;
+            backward) pc -p "${PLAYER}" position "${DASHBOARD_SEEK_SECONDS}-" ;;
+        esac
+    elif [[ "${BACKEND}" == mpd ]]; then
+        case "${action}" in
+            toggle|next) mpc_command -q "${action}" ;; previous) mpc_command -q prev ;;
+            forward) mpc_command -q seek "+${DASHBOARD_SEEK_SECONDS}" ;; backward) mpc_command -q seek "-${DASHBOARD_SEEK_SECONDS}" ;;
+        esac
+    else return 1; fi
+}
+select_player
+case "${1:-}" in
+    --json)
+        title="$(song)"; artist_name="$(artist)"
+        jq -nc --arg song "${title:-Nothing playing}" --arg artist "${artist_name:-Start your favorite player}" --arg status "$(status_icon)" --argjson progress "$(progress)" '{song:($song|gsub("\\\\";"\\\\")),artist:($artist|gsub("\\\\";"\\\\")),status:$status,progress:$progress}' ;;
+    --song) title="$(song)"; printf '%s\n' "${title:-Nothing playing}" ;;
+    --artist) artist_name="$(artist)"; printf '%s\n' "${artist_name:-Start your favorite player}" ;;
+    --backend) printf '%s\n' "${BACKEND}" ;; --status) status_icon ;; --time) progress ;;
+    --cover) PYTHONDONTWRITEBYTECODE=1 python3 "${DASHBOARD_ROOT}/lib/artwork.py" "${BACKEND}" "${PLAYER}" ;;
+    --toggle|--next|--prev|--seek-up|--seek-down|--seek-forward|--seek-backward)
+        case "$1" in --toggle) action=toggle ;; --next) action=next ;; --prev) action=previous ;; --seek-up|--seek-forward) action=forward ;; *) action=backward ;; esac
+        if ! control "${action}"; then notify_user 'Music unavailable' 'Start an MPRIS player or MPD, then try again.'; exit 1; fi ;;
+    *) print_error 'usage: music_info --json|--song|--artist|--backend|--status|--time|--toggle|--next|--prev|--seek-up|--seek-down'; exit 64 ;;
+esac

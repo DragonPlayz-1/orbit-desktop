@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Orbit Studio · Make it yours</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<a class="skip" href="#content">Skip to settings</a>
+<aside class="sidebar">
+  <a class="wordmark" href="#"><span class="orbit-mark">◉</span> ORBIT <small>STUDIO</small></a>
+  <p class="eyebrow">MADE FOR YOUR EVERYDAY</p>
+  <nav id="navigation" aria-label="Settings sections"></nav>
+  <div class="sidebar-note"><span class="online-dot"></span> A space that's only yours.<br><small>Local settings. No account. No tracking.</small></div>
+</aside>
+<main>
+  <header class="topbar"><span id="breadcrumb">Your workspace / Overview</span><button id="open-dashboard" class="ghost">Open dashboard ↗</button></header>
+  <div class="workspace">
+    <section class="editor"><div id="message" role="status" aria-live="polite" hidden></div><div id="content" tabindex="-1"></div></section>
+    <aside class="preview-panel" aria-label="Appearance preview">
+      <div class="preview-title"><span>YOUR SPACE, AT A GLANCE</span><span class="tag">Preview</span></div>
+      <div id="preview" class="preview"></div>
+      <p class="preview-foot">Style &amp; layout preview · sample data<br>Save to apply to the desktop dashboard.</p>
+    </aside>
+  </div>
+  <footer class="savebar"><div><strong id="save-state">All changes saved</strong><small>Settings are backed up automatically.</small></div><div class="save-actions"><button id="discard" class="ghost">Discard changes</button><button id="save" class="primary">Save &amp; apply <span>↗</span></button></div></footer>
+</main>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+</body></html>

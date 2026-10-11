@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the documentation
+    url: https://github.com/DragonPlayz-1/orbit-desktop#readme
+    about: Check installation, configuration, and troubleshooting guidance first.
+  - name: Read the security policy
+    url: https://github.com/DragonPlayz-1/orbit-desktop/blob/main/SECURITY.md
+    about: Report credentials, command execution, and other sensitive defects privately.

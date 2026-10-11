@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+if message="$(PYTHONDONTWRITEBYTECODE=1 python3 "${DASHBOARD_ROOT}/lib/actions.py" "$@" 2>&1)"; then
+    close_after_launch
+else
+    notify_user 'Could not open shortcut' "${message}"
+    exit 1
+fi

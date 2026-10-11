@@ -1,0 +1,43 @@
+/* Orbit design tokens; customized tokens are prepended by the renderer. */
+$base: #111827 !default;
+$surface: #1d293b !default;
+$text: #edf3ff !default;
+$muted: #a8bad3 !default;
+$accent: #85dbcd !default;
+$ink: #101820 !default;
+$font: "Sans" !default;
+$font-size: 14px !default;
+$radius: 22px !default;
+$opacity: 0.96 !default;
+$pad: 20px !default;
+$motion: 160ms !default;
+
+* { font-family: $font; font-size: $font-size; color: $text; }
+window { background-color: transparent; }
+.dashboard { background-color: rgba($base, $opacity); border: 1px solid rgba($muted, 0.24); border-radius: $radius; padding: $pad; box-shadow: 0 12px 32px rgba(0,0,0,0.26); }
+.header { padding: 4px 2px 22px; }
+.brand { font-size: 1.25em; font-weight: 800; letter-spacing: 0.12em; color: $accent; }
+.card { background-color: rgba($surface, 0.96); border: 1px solid rgba($muted, 0.14); border-radius: $radius; padding: $pad; }
+.kicker { font-size: 0.78em; font-weight: 700; color: $muted; letter-spacing: 0.12em; margin-bottom: 18px; }
+.muted { color: $muted; font-size: 0.88em; }
+.accent { color: $accent; }
+.hero { font-size: 1.85em; font-weight: 700; }
+.hero-small { font-size: 1.25em; font-weight: 700; }
+.clock { font-size: 3.4em; font-weight: 300; letter-spacing: -0.04em; }
+.weather-icon { font-size: 3.4em; color: $accent; }
+button { background-image: none; background-color: transparent; border: 1px solid transparent; border-radius: 12px; padding: 10px 14px; box-shadow: none; text-shadow: none; transition: background-color $motion ease; }
+button:hover { background-color: rgba($accent, 0.13); border-color: rgba($accent, 0.3); }
+button:active { background-color: rgba($accent, 0.23); }
+button:focus { border: 2px solid $accent; }
+button:disabled { opacity: 0.5; }
+.primary { background-color: $accent; color: $ink; font-weight: 700; }
+.primary label { color: $ink; }
+.subtle { background-color: rgba($muted, 0.08); }
+.shortcut { padding: 10px; }
+.shortcut-icon { color: $accent; font-weight: 700; font-size: 0.88em; }
+.transport button { background-color: rgba($accent, 0.09); font-size: 1.3em; }
+progressbar trough { min-height: 6px; background-color: rgba($muted, 0.18); border-radius: 8px; border: none; }
+progressbar progress { min-height: 6px; background-color: $accent; border-radius: 8px; border: none; }
+scrollbar { background-color: transparent; }
+scrollbar slider { background-color: rgba($muted, 0.3); min-width: 5px; border-radius: 6px; }
+.empty-state { padding: 30px; color: $muted; }

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+case "${1:-}" in
+    --version)
+        printf 'eww %s\n' "${EWW_TEST_VERSION-0.6.0}"
+        ;;
+    --config)
+        config=$2
+        shift 2
+        state="${EWW_TEST_STATE:-${config}/fixture-state}"
+        case "${1:-}" in
+            ping) [[ -f "${state}.daemon" ]] ;;
+            daemon) mkdir -p "$(dirname -- "${state}")"; touch "${state}.daemon" ;;
+            open)
+                [[ "${2:-}" == dashboard ]] || exit 1
+                if [[ "${EWW_TEST_FAIL_OPEN:-0}" != 1 ]]; then touch "${state}.open"; fi ;;
+            close|close-all) rm -f "${state}.open" ;;
+            active-windows) [[ ! -f "${state}.open" ]] || printf 'dashboard: dashboard\n' ;;
+            kill) rm -f "${state}.daemon" "${state}.open" ;;
+            reload) exit 0 ;;
+            *) exit 64 ;;
+        esac
+        ;;
+    *)
+        exit 0
+        ;;
+esac

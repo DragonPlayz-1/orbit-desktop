@@ -1,0 +1,77 @@
+name: Orbit Desktop checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install static analysis tools
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck jq curl
+
+      - name: Run repository checks
+        run: tests/check.sh
+
+      - name: Check Studio JavaScript
+        run: node --check eww/dashboard/studio/app.js
+
+  studio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright@1.58.2
+          "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Exercise Studio in Chromium
+        run: NODE_PATH="$RUNNER_TEMP/browser/node_modules" node tests/smoke_studio.cjs
+
+  eww:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: '1.76.0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK and display test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libgtk-layer-shell-dev libdbusmenu-gtk3-dev librsvg2-common libx11-dev libxrandr-dev pkg-config xvfb xauth dbus-x11 x11-xserver-utils x11-utils sway jq curl
+          rustup toolchain install 1.76.0 --profile minimal
+      - name: Fetch pinned EWW release
+        run: |
+          curl --fail --location --retry 3 https://github.com/elkowar/eww/archive/refs/tags/v0.6.0.tar.gz -o "$RUNNER_TEMP/eww.tar.gz"
+          printf 'cef361946946c566b79f8ddc6208d1a3f16b4ff9961439a3f86935e1cfa174a1  %s\n' "$RUNNER_TEMP/eww.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/eww.tar.gz" -C "$RUNNER_TEMP"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ${{ runner.temp }}/eww-0.6.0/target
+          key: eww-v060-rust176-ubuntu2204-both-backends-v1
+      - name: Build reference EWW
+        working-directory: ${{ runner.temp }}/eww-0.6.0
+        run: |
+          cargo build --locked -p eww --no-default-features --features x11,wayland
+          echo "EWW_BIN=$RUNNER_TEMP/eww-0.6.0/target/debug/eww" >> "$GITHUB_ENV"
+      - name: X11 rendering matrix
+        run: |
+          for resolution in 1280x720 1366x768 1920x1080 2560x1440 3440x1440; do
+            xvfb-run -a -s "-screen 0 ${resolution}x24" dbus-run-session -- python3 tests/smoke_eww.py
+          done
+      - name: Wayland multi-monitor rendering
+        run: dbus-run-session -- python3 tests/smoke_wayland.py

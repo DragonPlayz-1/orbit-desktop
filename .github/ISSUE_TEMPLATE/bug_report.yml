@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible problem with Orbit Desktop.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to improve Orbit Desktop. Please remove usernames, home paths, tokens, and other private data from logs before posting.
+  - type: input
+    id: version
+    attributes:
+      label: Orbit version or commit
+      placeholder: "0.1.0 or 1234abc"
+    validations:
+      required: true
+  - type: dropdown
+    id: session
+    attributes:
+      label: Display session
+      options:
+        - X11
+        - Wayland / Sway
+        - Wayland / Hyprland
+        - Other Wayland compositor
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: eww
+    attributes:
+      label: EWW version
+      placeholder: "eww 0.6.0"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include the smallest reproduction you can.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics and logs
+      description: Run dashboard_doctor where possible. Redact personal paths and secrets.
+      render: shell

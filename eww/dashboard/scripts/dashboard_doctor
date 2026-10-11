@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/common.sh"
+
+failures=0
+warnings=0
+
+pass() { printf '[PASS] %s\n' "$*"; }
+warn() { printf '[WARN] %s\n' "$*"; warnings=$((warnings + 1)); }
+fail() { printf '[FAIL] %s\n' "$*"; failures=$((failures + 1)); }
+
+printf 'Orbit Dashboard diagnostic\n'
+printf '  source: %s\n' "${DASHBOARD_ROOT}"
+printf '  config: %s\n' "${USER_CONFIG_FILE}"
+printf '\n'
+
+if eww_path="$(require_eww 2>/dev/null)"; then
+    pass "EWW $(eww_version_label "$(eww_version "${eww_path}")") at ${eww_path}"
+else
+    fail 'Supported EWW was not found'
+fi
+
+for required in bash python3 curl jq flock timeout; do
+    if command_exists "${required}"; then
+        pass "required command: ${required}"
+    else
+        fail "required command missing: ${required}"
+    fi
+done
+
+if config_control validate; then
+    pass 'settings schema and values'
+else
+    fail 'settings need repair; open Orbit Customize to restore or reset'
+fi
+
+for optional in playerctl mpc wpctl pactl pamixer amixer notify-send zenity kdialog rofi wofi xdg-open gio systemctl; do
+    if command_exists "${optional}"; then
+        pass "optional command: ${optional}"
+    else
+        warn "optional command missing: ${optional}"
+    fi
+done
+
+if configured_location="$(printf '%s\n' "${DASHBOARD_WEATHER_LATITUDE},${DASHBOARD_WEATHER_LONGITUDE}")"; then
+    if [[ -n "${DASHBOARD_WEATHER_LATITUDE}" && -n "${DASHBOARD_WEATHER_LONGITUDE}" ]]; then
+        pass "weather coordinates configured: ${configured_location}"
+    else
+        warn 'weather is intentionally not configured yet'
+    fi
+fi
+
+case "${DASHBOARD_WEATHER_UNIT}" in
+    metric|imperial) pass "weather unit: ${DASHBOARD_WEATHER_UNIT}" ;;
+    *) warn "invalid weather unit '${DASHBOARD_WEATHER_UNIT}'; metric will be used" ;;
+esac
+
+for asset in \
+    "${DASHBOARD_ROOT}/images/bg.jpg" \
+    "${DASHBOARD_ROOT}/images/music.png" \
+    "${DASHBOARD_ROOT}/images/google.svg" \
+    "${DASHBOARD_ROOT}/images/perplexity.svg"; do
+    if [[ -f "${asset}" ]]; then
+        pass "asset exists: ${asset##*/}"
+    else
+        fail "asset missing: ${asset}"
+    fi
+done
+
+if [[ -n "${DASHBOARD_PROFILE_IMAGE}" ]]; then
+    if [[ -f "${DASHBOARD_PROFILE_IMAGE}" ]]; then
+        pass 'configured profile image exists'
+    else
+        warn "configured profile image does not exist: ${DASHBOARD_PROFILE_IMAGE}"
+    fi
+else
+    warn 'no profile image configured; the profile card will use its fallback'
+fi
+
+printf '\nSummary: %s failure(s), %s warning(s)\n' "${failures}" "${warnings}"
+(( failures == 0 ))

@@ -1,0 +1,25 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+
+# Runtime state and generated files
+.cache/
+.local/
+*.log
+*.pid
+*.lock
+*.tmp
+
+# Editor and operating-system metadata
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+.idea/
+.vscode/
+
+# Test and coverage output
+coverage/
+test-results/
+__pycache__/
+*.pyc

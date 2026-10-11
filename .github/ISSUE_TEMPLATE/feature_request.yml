@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a focused improvement to Orbit Desktop.
+title: "idea: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Strong proposals explain the desktop problem first, then the smallest useful solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What would become easier, calmer, or more reliable?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Describe how it should work for someone using Orbit Studio or the dashboard.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Project fit
+      options:
+        - label: This works with Orbit's local-first, optional-integration model.
+          required: true
+        - label: I checked the existing documentation and open issues.
+          required: true
